@@ -36,12 +36,39 @@ let update x v s = fun y -> if x = y then v else s y
 let s = update "x" 1 @@ update "y" 2 @@ update "z" 3 @@ update "t" 4 empty
 
 (* Some testing; comment this definition out when submitting the solution. *)
-let _ =
+(*let _ =
   List.iter
     (fun x ->
        try  Printf.printf "%s=%d\n" x @@ s x
        with Failure s -> Printf.printf "%s\n" s
     ) ["x"; "a"; "y"; "z"; "t"; "b"]
+*)
+
+(*Convert int to bool*)
+let intToBool var = var != 0
+(*Convert bool to int*)
+let boolToInt var = if var then 1 else 0 
+(* int->int-> bool to int -> int -> int *)
+let compareInt f var1 var2 = boolToInt ( f var1 var2 )
+(*bool -> bool_-> bool to int-> int-> int *)
+let compareBool f var1 var2 = boolToInt (f (intToBool var1) (intToBool var2 ) )
+(*Convert operator to Ocaml*)
+let evalOperation op = match op with
+  | "+"  -> ( + )
+  | "-"  -> ( - )
+  | "*"  -> ( * )
+  | "/"  -> ( / )
+  | "%"  -> ( mod ) 
+  | "<"  -> compareInt( < )
+  | ">"  -> compareInt( > )
+  | "<=" -> compareInt( <= )
+  | ">=" -> compareInt( >= )
+  | "==" -> compareInt( = )
+  | "!=" -> compareInt( <> )
+  | "&&" -> compareBool( && )
+  | "!!" -> compareBool( || )
+  | _    -> failwith "Unknown operator" ;;
+
 
 (* Expression evaluator
 
@@ -50,5 +77,9 @@ let _ =
    Takes a state and an expression, and returns the value of the expression in 
    the given state.
 *)
-let eval = failwith "Not implemented yet"
+
+let rec eval state expr = match expr with
+  | Const var -> var 
+  | Var str -> state str
+  | Binop (op, expr1, expr2) -> evalOperation op (eval state expr1) (eval state expr2) 
                     
