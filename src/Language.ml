@@ -37,14 +37,48 @@ module Expr =
     *)
     let update x v s = fun y -> if x = y then v else s y
 
+    (*Convert int to bool*)
+    let intToBool var = var != 0
+    (*Convert bool to int*)
+    let boolToInt var = if var then 1 else 0 
+    (* int->int-> bool to int -> int -> int *)
+    let compareInt f var1 var2 = boolToInt ( f var1 var2 )
+    (*bool -> bool_-> bool to int-> int-> int *)
+    let compareBool f var1 var2 = boolToInt (f (intToBool var1) (intToBool var2 ) )
+    (*Convert operator to Ocaml*)
+    let evalOperation op = match op with
+      | "+"  -> ( + )
+      | "-"  -> ( - )
+      | "*"  -> ( * )
+      | "/"  -> ( / )
+      | "%"  -> ( mod ) 
+      | "<"  -> compareInt( < )
+      | ">"  -> compareInt( > )
+      | "<=" -> compareInt( <= )
+      | ">=" -> compareInt( >= )
+      | "==" -> compareInt( = )
+      | "!=" -> compareInt( <> )
+      | "&&" -> compareBool( && )
+      | "!!" -> compareBool( || )
+      | _    -> failwith "Unknown operator" ;;
+
+
     (* Expression evaluator
 
-          val eval : state -> t -> int
- 
+         val eval : state -> expr -> int
+     
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
     *)
-    let eval _ = failwith "Not implemented yet"
+
+    let rec eval state expr = match expr with
+      | Const var -> var 
+      | Var str -> state str
+      | Binop (op, expr1, expr2) -> evalOperation op (eval state expr1) (eval state expr2) 
+
+
+
+    let parseBinop op = ostap(- $(op)),(fun expr1 expr2 -> Binop (op,expr1,expr2))
 
     (* Expression parser. You can use the following terminals:
 
@@ -53,7 +87,21 @@ module Expr =
    
     *)
     ostap (
-      parse: empty {failwith "Not implemented yet"}
+      expr:
+        !(Ostap.Util.expr
+          (fun x-> x)
+          (Array.map (fun (assoc,op) -> assoc,List.map parseBinop op)
+            [|
+              `Lefta, ["!!"];
+              `Lefta, ["&&"];
+              `Nona,  ["<=";"<";">=";">";"!=";"==";];
+              `Lefta, ["+";"-"];
+              `Lefta, ["*";"/";"%"];
+            |]
+          )
+          primary
+        );
+      primary: x:IDENT {Var x}| c:DECIMAL {Const c}| -"(" expr -")"
     )
 
   end
@@ -78,11 +126,22 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ = failwith "Not implemented yet"
+ 
+    let rec eval (state,input,output) stmt = match stmt with
+    | Read x -> (match input with
+    | z::tail ->(Expr.update x z state, tail, output)
+    | _ -> failwith "Read")
+    | Write e -> (state,input,output @ [Expr.eval state e])
+    | Assign (x,e)-> (Expr.update x (Expr.eval state e) state, input,output)
+    | Seq (e1,e2) -> eval (eval (state,input,output) e1) e2
 
     (* Statement parser *)
     ostap (
-      parse: empty {failwith "Not implemented yet"}
+      stmt : "read"  "("  x:IDENT ")"          { Read x }
+           | "write" "("  exp:!(Expr.expr) ")" { Write exp }
+           | x:IDENT ":=" exp:!(Expr.expr)     { Assign (x,exp) };
+
+      parse: line:stmt ";" rest:parse {Seq (line,rest)} | stmt
     )
       
   end
