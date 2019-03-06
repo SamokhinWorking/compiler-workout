@@ -129,8 +129,8 @@ module Stmt =
  
     let rec eval (state,input,output) stmt = match stmt with
     | Read x -> (match input with
-    | z::tail ->(Expr.update x z state, tail, output)
-    | _ -> failwith "Read")
+		| z::tail ->(Expr.update x z state, tail, output)
+		| _ -> failwith "Read")
     | Write e -> (state,input,output @ [Expr.eval state e])
     | Assign (x,e)-> (Expr.update x (Expr.eval state e) state, input,output)
     | Seq (e1,e2) -> eval (eval (state,input,output) e1) e2
