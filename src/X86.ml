@@ -73,14 +73,67 @@ let show instr =
 (* Opening stack machine to use instructions without fully qualified names *)
 open SM
 
-(* Symbolic stack machine evaluator
+
+let get_suf op = match op with
+  | "<" -> "l"
+  | "<=" ->"le"
+  | ">" -> "g"
+  | ">=" -> "ge"
+  | "==" -> "e"
+  | "!=" -> "ne"
+  | _ -> failwith("unknown bool operator")
+
+let rec compile_binop env op  =
+  let zero opnd = Binop ("^",opnd,opnd) in 
+  let compare op l r space = [zero eax; Binop("cmp",r,l);Set (get_suf op,"%al");Mov (eax,space)] in
+  let r,l,env =env#pop2 in
+  let space, env = env#allocate in 
+  let instr_list = match  op with
+    | "+" | "-" | "*" -> (match (l,r) with
+      |(S _, S _ ) -> [Mov(l,eax);Binop(op,r,eax);Mov(eax,space)]
+      | _ -> if space = l then 
+              [Binop (op,r,l)]
+            else 
+              [Binop (op,r,l);Mov(l,space)]
+                          )
+    | "<=" | "<"| ">="| ">" | "==" | "!=" ->(match (l,r) with 
+      |(S _, S _)-> [Mov(l,edx)] @ compare op edx r space 
+      | _ -> compare op l r space
+                                            )
+    | "/" -> [Mov(l,eax);zero edx;Cltd; IDiv r; Mov(eax,space)]
+    | "%" -> [Mov(l,eax);zero edx;Cltd; IDiv r; Mov(edx,space)]
+    | "!!" -> [zero eax; Mov (l,edx); Binop("!!",r,edx);Set("nz","%al"); Mov (eax,space)]
+    | "&&"-> [zero eax; zero edx;Binop("cmp",L 0,l); Set("ne","%al");
+                                 Binop("cmp",L 0,r); Set ("ne","%dl");
+                                 Binop("&&",edx,eax);Mov (eax,space)
+             ]
+    | _ -> failwith("unknown bin operand")
+  in env, instr_list
+
+  (* Symbolic stack machine evaluator
 
      compile : env -> prg -> env * instr list
 
    Take an environment, a stack machine program, and returns a pair --- the updated environment and the list
    of x86 instructions
 *)
-let compile _ _ = failwith "Not yet implemented"
+
+let rec compile env prg  = match prg with
+| []-> env, []
+| ins :: tail ->
+  let new_env, instr_list =(match ins with
+    | CONST n -> let space, new_env1 = env#allocate in new_env1, [Mov(L n,space)]
+    | READ -> let space, new_env1 = env#allocate in new_env1, [Call "Lread";Mov(eax,space)]
+    | WRITE -> let space, new_env1 = env#pop in new_env1, [Push space; Call "Lwrite"; Pop eax]
+    | LD x -> let space, new_env1 = (env#global x)#allocate in 
+              let var = env#loc x in new_env1, [Mov((M var),space)]
+    | ST x -> let space,new_env1 = (env#global x)#pop in 
+              let var = env#loc x in new_env1, [Mov(space, (M var))]
+    | BINOP op ->compile_binop env op
+    ) in
+  let result_env, result_inst_list = compile new_env tail in 
+  result_env, (instr_list @ result_inst_list)
+
 
 (* A set of strings *)           
 module S = Set.Make (String)
