@@ -79,7 +79,6 @@ let show instr =
 (* Opening stack machine to use instructions without fully qualified names *)
 open SM
 
-
 let get_suf op = match op with
   | "<" -> "l"
   | "<=" ->"le"
@@ -132,16 +131,17 @@ let rec compile env prg  = match prg with
     | READ -> let space, new_env1 = env#allocate in new_env1, [Call "Lread";Mov(eax,space)]
     | WRITE -> let space, new_env1 = env#pop in new_env1, [Push space; Call "Lwrite"; Pop eax]
     | LD x -> let space, new_env1 = (env#global x)#allocate in 
-              let var = env#loc x in new_env1, [Mov((M var),space)]
+              let var = env#loc x in new_env1, [Mov((M var),eax);Mov(eax,space)]
     | ST x -> let space,new_env1 = (env#global x)#pop in 
-              let var = env#loc x in new_env1, [Mov(space, (M var))]
+              let var = env#loc x in new_env1, [Mov(space,eax);Mov(eax, (M var))]
     | BINOP op ->compile_binop env op
-    | LABEL s -> env, [Label s]
-    | JMP l -> env, [Jmp l]
-    | CJMP (f,l) ->let s, new_env1 = env#pop in new_env1, [Binop ("cmp",L 0, s);CJmp (f,l)]
+    | LABEL l     -> env, [Label l]
+      | JMP   l     -> env, [Jmp l]
+      | CJMP (c, l) -> let var  , new_env = env#pop     in new_env, [Binop ("cmp", L 0, var); CJmp (c, l)]
     ) in
   let result_env, result_inst_list = compile new_env tail in 
   result_env, (instr_list @ result_inst_list)
+
 
 (* A set of strings *)           
 module S = Set.Make (String)
