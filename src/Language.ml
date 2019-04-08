@@ -150,14 +150,48 @@ module Stmt =
 
        which returns a list of formal parameters and a body for given definition
     *)
-    let rec eval _ = failwith "Not Implemented Yet"
+     let rec eval env (state,input,output) stmt = match stmt with
+      | Read x -> (match input with
+        | z::tail ->(State.update x z state, tail, output)
+        | _ -> failwith "Read")
+      | Write e -> (state,input,output @ [Expr.eval state e])
+      | Assign (x,e)-> (State.update x (Expr.eval state e) state, input,output)
+      | Seq (e1,e2) -> eval env  (eval env  (state,input,output) e1) e2
+      | Skip -> (state,input,output)
+      | If (e,s1,s2) -> if Expr.eval state e != 0 then eval env  (state,input,output) s1 else eval env  (state,input,output) s2
+      | While (e,s) -> if Expr.eval state e != 0 then eval env  (eval env  (state,input,output) s) stmt else (state,input,output)
+      | Repeat (s,e) -> let (st_, i_, o_) as conf_ = eval env (state,input,output) s in 
+                        if Expr.eval st_ e == 0 then eval env conf_ stmt else conf_
+      | Call(name,args)-> let (argNames,localVars,body)= env#definition name in
+                          let args = List.combine argNames (List.map (Expr.eval state) args) in
+                          let stateWithScope = State.push_scope state (argNames @ localVars) in
+                          let functionState = List.fold_left ( fun s (name,value) -> State.update name value s ) stateWithScope args in
+                          let (state', input',output') = eval env (functionState, input,output) body in
+                          (State.drop_scope state' state, input',output')
                                 
     (* Statement parser *)
     ostap (                                      
-      parse: empty {failwith "Not yet implemented"}
+      if_tail: 
+          "fi" {Skip}
+        | "else" r: parse "fi" {r}
+        | "elif" e: !(Expr.parse) "then" l: parse r: if_tail {If (e, l, r)}
+      ;
+      stmt: 
+          "read" "(" s: IDENT ")" {Read s}
+        | "write" "(" e: !(Expr.parse) ")" {Write e}
+        | s:IDENT ":=" e: !(Expr.parse) {Assign (s, e)}
+        | "skip" {Skip}
+        | "if" e: !(Expr.parse) "then" l: parse r: if_tail {If (e, l ,r)}
+        | "while" cond: !(Expr.parse) "do" body: parse "od" {While (cond, body)}
+        | "repeat" body: parse "until" cond: !(Expr.parse) {Repeat (body, cond)}
+        | "for" i: parse "," cond: !(Expr.parse) "," it: parse
+          "do" body: parse "od" {Seq (i, While(cond, Seq(body, it)))}
+        | f: IDENT "(" args: (!(Expr.parse))* ")" {Call (f, args)}
+      ;
+      parse: x: stmt ";" xs: parse {Seq (x, xs)} | stmt
     )
       
-  end
+end
 
 (* Function and procedure definitions *)
 module Definition =
@@ -166,11 +200,18 @@ module Definition =
     (* The type for a definition: name, argument list, local variables, body *)
     type t = string * (string list * string list * Stmt.t)
 
-    ostap (                                      
-      parse: empty {failwith "Not yet implemented"}
+   ostap (                                      
+      parse: "fun" name: IDENT "(" args:IDENT* ")" local: (%"local" IDENT*)? "{" body:!(Stmt.parse) "}"
+      {
+        let local = match local with
+        | Some x-> x
+        | _ ->  [] in
+        name,(args,local,body)
+      }
     )
 
   end
+    
     
 (* The top-level definitions *)
 
