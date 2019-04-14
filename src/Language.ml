@@ -240,14 +240,15 @@ module Definition =
     type t = string * (string list * string list * Stmt.t)
 
     
-   ostap (                                      
-      parse: "fun" name: IDENT "(" args:IDENT* ")" local: (%"local" IDENT*)? "{" body:!(Stmt.parse) "}"
-      {
-        let local = match local with
-        | Some x-> x
-        | _ ->  [] in
-        name,(args,local,body)
-      }
+   ostap (
+        arg: IDENT;
+        parse: "fun" name:IDENT "(" args:!(Util.list0 arg) ")" local:(%"local" !(Util.list0 arg))? "{" body:!(Stmt.parse) "}"
+        {
+            let local = match local with
+            | Some x -> x
+            | _ -> [] in
+            name, (args, local, body)
+        }
     )
 
   end
