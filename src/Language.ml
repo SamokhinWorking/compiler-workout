@@ -320,9 +320,9 @@ module Stmt =
           parse: wildcard | sexp | var
         )
         
-        let vars p =
-          transform(t) (fun f -> object inherit [string list, _] @t[foldl] f method c_Ident s _ name = name::s end) [] p         
-      end
+       let vars p =
+		          transform(t) (object inherit [string list] @t[foldl] method c_Ident s _ name = name::s end) [] p
+		end
   
  
         
@@ -425,10 +425,6 @@ module Stmt =
      let to_list = function
       | None -> []
 	  | Some results -> results
-	
-	
-	
-   
 
     ostap (	  
       base: !(Expr.parse);
