@@ -138,7 +138,8 @@ static void printValue (void *p) {
   }
 }
 
-extern void* Belem (void *p, int i) {
+
+extern void* Belem (int i, void *p) { // Order changed to avoid SWAPs in sexp
   data *a = TO_DATA(p);
   i = UNBOX(i);
   
@@ -196,20 +197,22 @@ extern void* Barray (int n, ...) {
 extern void* Bsexp (int n, ...) {
   va_list args;
   int i;
-  sexp *r = (sexp*) malloc (sizeof(int) * (n+2));
+  sexp *r = (sexp*) malloc (sizeof(int) * (n+3));
+
   data *d = &(r->contents);
 
-  d->tag = SEXP_TAG | (n-1);
+  d->tag = SEXP_TAG | n;
   
   va_start(args, n);
+  r->tag = va_arg(args, int); // Order changed for  X86
   
-  for (i=0; i<n-1; i++) {
+  for (i=0; i<n; i++) {
+ 
     int ai = va_arg(args, int);
     //printf ("arg %d = %x\n", i, ai);
     ((int*)d->contents)[i] = ai; 
   }
 
-  r->tag = va_arg(args, int);
   va_end(args);
 
   //printf ("tag %d\n", r->tag);
@@ -218,17 +221,19 @@ extern void* Bsexp (int n, ...) {
   return d->contents;
 }
 
-extern int Btag (void *d, int t) {
+extern int Btag (int t, void *d) { // Order changed for  X86
+
   data *r = TO_DATA(d);
   return BOX(TAG(r->tag) == SEXP_TAG && TO_SEXP(d)->tag == t);
 }
-		 
-extern void Bsta (int n, int v, void *s, ...) {
+
+extern void Bsta (int n, void *s, int v, ...) { // Order changed for  X86		 
+
   va_list args;
   int i, k;
   data *a;
   
-  va_start(args, s);
+  va_start(args, v);
 
   for (i=0; i<n-1; i++) {
     k = UNBOX(va_arg(args, int));
